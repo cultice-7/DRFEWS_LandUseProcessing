@@ -6,6 +6,15 @@
 .RData
 .RDataTmp
 
+# Project File
+*.Rproj
+
+# Data Folder
+inputs/
+
+# Archived files
+src/old/*
+
 # User-specific files
 .Ruserdata
 
