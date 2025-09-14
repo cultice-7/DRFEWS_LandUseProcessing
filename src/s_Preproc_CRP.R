@@ -13,6 +13,7 @@ if (!require("pacman")) install.packages("pacman")
 
 libraries <- c("tidyverse",
                "data.table",
+               "tigris",
                "readxl",
                "here")
 pacman::p_load(char = libraries)
@@ -50,7 +51,7 @@ args = f.make_fullname(args)
 #####
 ### Step 2: Executions
 #####
-read_excel()
+excel_sheets(args$file_in_CRP)
 
 # Executions -- Load Enrollment Data
 dt.cons_land <- read_excel(args$file_in_CRP,
@@ -58,15 +59,34 @@ dt.cons_land <- read_excel(args$file_in_CRP,
                            skip = 3)
 
 dt.cons_rent <- read_excel(args$file_in_CRP,
-                           sheet = "")
+                           sheet = "AVERAGE",
+                           skip = 3)
+
 # Executions -- Basic Variable Cleaning
-dt.cons_land <- dt.cons_land %>%
-  as.data.table() %>%
+f.basic_clean <- function(dt, varname){
+
+  dt <- read_excel(args$file_in_CRP, sheet = "AVERAGE", skip = 3)
+
+  # Create county names, reshape data, set new names, filter for missing
+  dt <- copy(dt) %>%
+    as.data.table() %>%
   .[,FIPS_cnty := str_pad(FIPS, width = 5, side = "left", pad = "0")]  %>%
   .[,FIPS_st   := str_sub(FIPS_cnty, end = 2)] %>%
   .[,c("FIPS_cnty", "FIPS_st", as.character(1986:2022))] %>%
   setnames(c("FIPS_cnty", "FIPS_st", str_c("CRP_Acres", 1986:2022))) %>%
-  melt(measure = patterns("CRP_Acres"), variable.name = "Year", value.name = "CRP_Acres")
+  melt(measure = patterns(varname), variable.name = "Year", value.name = varname) %>%
+  .[!is.na(FIPS_cnty)]
+
+  # Merge to full county file to show any missing counties
+  dt.full <- as.data.table(fips_codes) %>%
+    .[,FIPS_cnty := str_c(state_code, county_code)] %>%
+    merge(dt, by = c("FIPS_cnty"), all.x = TRUE)
+
+  # Return cleaned data table
+  return(dt.full)
+}
+
+
 
 
 ### Build Conservation Enrollment Data

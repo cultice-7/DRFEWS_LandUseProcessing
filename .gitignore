@@ -11,6 +11,7 @@
 
 # Data Folder
 inputs/
+outputs/
 
 # Archived files
 src/old/*

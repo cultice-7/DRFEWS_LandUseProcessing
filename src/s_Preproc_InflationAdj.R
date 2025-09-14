@@ -13,8 +13,7 @@ if (!require("pacman")) install.packages("pacman")
 
 libraries <- c("tidyverse",
                "data.table",
-               "here",
-               "argparse")
+               "here")
 pacman::p_load(char = libraries)
 
 ### Step 0: Checking working directory
@@ -24,39 +23,37 @@ here::i_am("Snakefile")
 ### Step 1: Parsing
 #####
 
-parser <- ArgumentParser()
-parser$add_argument("--raw_text", action = "store", type="string", metavar = "InputText",
-                    help = "Name of input file w/ raw CPIu data")
-parser$add_argument("--out_name", action = "store", type="string", metavar = "OutputName",
-                    help = "Name of output file w/ base year deflator")
-parser$add_argument("--base_year", action = "store", type="integer", 
-                    metavar = "Infl Base Year", default = 2016,
-                    help = "Base year for generating inflation deflator value")
-args <- parser$parse_args()
+# debug
+file_in <- "inputs/BLS_CPIu_Annual_1990-2024.txt"
+base_year <- 2016
+file_out <- paste0("outputs/CPIu_Base", base_year, ".csv")
+infl <- 0.02
 
-# PARSING -- create full file extensions from filename args
-f.make_fullname <- function(args){
-  
-  for (key in names(args)){
-    if (str_detect(key, "file")){
-      args[[key]] = str_c(getwd(), "/", args[[key]])
-    }
-  }
-  # make_fullname -- Loop through keys
-  return(args)
-}
-args = f.make_fullname(args)
+# file_in <- snakemake@input[["file_in"]]
+# file_out <- snakemake@output[["file_out"]]
+# base_year <- snakemake@params[["base_year"]]
+# infl <- snakemake@params[["infl"]]
 
 #####
 ### Step 2: Executions
 #####
 
-dt.cpi <- fread(args$file_in)
-cpi_base <- dt.cpi[Year == args$base_year]$Annual
+# Load inflation data and create a deflator based on base year
+cpi <- fread(file_in)
+cpi_base <- cpi[Year == base_year]$Annual
+cpi <- cpi %>%
+  .[, Deflator := round(Annual / cpi_base, 2)] %>%
+  .[, c("Year", "Deflator")]
 
-dt.cpi <- dt.cpi %>%
-  .[,Deflator := round(Annual/cpi_base, 2)] %>%
-  .[,c("Year", "Deflator")] %>%
-fwrite(dt.cpi, args$file_out)
+# Extend series out to 2050
+start_year <- max(dt.cpi$Year) + 1
+end_year <- 2050
 
+for (year in start_year:end_year){
+  new_val <- round((cpi[Year == year - 1]$Deflator) * (1 + infl), 2)
+  new_row <- list(Year = year, Deflator = new_val)
+  cpi <- rbind(cpi, new_row)
+}
 
+# Write inflation to file
+fwrite(cpi, file_out)
